@@ -172,6 +172,14 @@
         .control-btn.toggle:hover {
             background: #0052a3;
         }
+
+        .set-switch {
+            background: #28a745;
+        }
+
+        .set-switch:hover {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
@@ -185,6 +193,7 @@
                 <div class="controls">
                     <button class="control-btn pause" id="pauseBtn" onclick="togglePause()">Pause</button>
                     <button class="control-btn toggle" id="toggleBtn" onclick="toggleVideoVisibility()">Hide Video</button>
+                    <button class="control-btn set-switch" id="setBtn" onclick="switchSet()">Switch to Set 2</button>
                 </div>
 
                 <div class="player-container">
@@ -196,56 +205,126 @@
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
-        // Video configuration - edit this array to add/modify videos
-        const videos = [
-            {
-                id: 'iYAWhAhzstQ',
-                name: 'RHCP (Bass)',
-                startTime: 45,
-                endTime: 70  // Set to seconds to stop playback, or null for no limit
-            },
-            {
-                id: 'AEPIToPeyt0',
-                name: 'SG (Guitar)',
-                startTime: 702,
-                endTime: 720
-            },
-            {
-                id: 'fDk_nlzMbLw',
-                name: 'MJ (Drums)',
-                startTime: 3,
-                endTime: 30
-            },
-            {
-                id: 'ifDuN-NF8Oo',
-                name: 'RatCT (Sax)',
-                startTime: 0,
-                endTime: null
-            },
-            {
-                id: 'VCa8X9i8vfs',
-                name: 'Mac (Drums)',
-                startTime: 90,
-                endTime: 150
-            },
-            {
-                id: 'ywnc_OKKst8',
-                name: 'Rox (Drums)',
-                startTime: 0,
-                endTime: 30
-            },
-            {
-                id: '3JWTaaS7LdU',
-                name: 'Whitney',
-                startTime: 170,
-                endTime: 205
-            }
-        ];
+        // Video configuration - edit these arrays to add/modify videos
+        const videoSets = {
+            set1: [
+                {
+                    id: 'iYAWhAhzstQ',
+                    name: 'Californication (Bass)',
+                    startTime: 45,
+                    endTime: 70  // Set to seconds to stop playback, or null for no limit
+                },
+                {
+                    id: 'AEPIToPeyt0',
+                    name: 'Black hole sun (Guitar)',
+                    startTime: 702,
+                    endTime: 720
+                },
+                {
+                    id: 'fDk_nlzMbLw',
+                    name: 'Black and White (Drums)',
+                    startTime: 3,
+                    endTime: 30
+                },
+                {
+                    id: 'ifDuN-NF8Oo',
+                    name: 'Rocking around (Sax)',
+                    startTime: 0,
+                    endTime: null
+                },
+                {
+                    id: 'VCa8X9i8vfs',
+                    name: 'Macarena (Drums)',
+                    startTime: 90,
+                    endTime: 150
+                },
+                {
+                    id: 'ywnc_OKKst8',
+                    name: 'Roxanne (Drums)',
+                    startTime: 0,
+                    endTime: 30
+                }
+            ],
+            set2: [
+                {
+                    id: 'qiTJyzwiqls',
+                    name: 'Anthony Strong',
+                    startTime: 105,
+                    endTime: 132
+                },
+                {
+                    id: 'gnEZxXryOt8',
+                    name: 'Help',
+                    startTime: 0,
+                    endTime: 90
+                },
+                {
+                    id: 'QDuMpS02BWY',
+                    name: 'White Room',
+                    startTime: 40,
+                    endTime: 70
+                },
+                {
+                    id: 'g_HN50TLuaI',
+                    name: 'Oops',
+                    startTime: 0,
+                    endTime: 25
+                },
+                {
+                    id: '2R-2Hi9j4yM',
+                    name: 'Enter Sandman',
+                    startTime: 23,
+                    endTime: 55
+                },
+                {
+                    id: '15VYekFpdaE',
+                    name: 'In da Club',
+                    startTime: 91,
+                    endTime: 115
+                },
+                {
+                    id: 'uznkstScnag',
+                    name: 'Walk the Line',
+                    startTime: 22,
+                    endTime: 41
+                },
+                {
+                    id: 'u3UVOjiorHE',
+                    name: 'Bad Guy',
+                    startTime: 30,
+                    endTime: 50
+                },
+                {
+                    id: '9wIU0maMWAw',
+                    name: 'Dancing Queen',
+                    startTime: 127,
+                    endTime: 149
+                }
+            ],
+            set3: [
+                {
+                    id: '3JWTaaS7LdU',
+                    name: 'Whitney',
+                    startTime: 170,
+                    endTime: 205
+                },
+                {
+                    id: 'vC1cgcOEErQ',
+                    name: 'Futur',
+                    startTime: 8,
+                    endTime: null
+                }
+            ]
+        };
 
         let player;
         let currentVideoIndex = null;
         let endTimeInterval = null;
         let isVideoVisible = true;
+        const setKeys = Object.keys(videoSets);
+        let currentSetIndex = 0;
+        let currentSet = setKeys[currentSetIndex];
+        let videos = videoSets[currentSet];
 
         // Load YouTube IFrame API
         function onYouTubeIframeAPIReady() {
@@ -385,6 +464,28 @@
                 playerContainer.classList.add('hidden');
                 toggleBtn.textContent = 'Show Video';
             }
+        }
+
+        function switchSet() {
+            const setBtn = document.getElementById('setBtn');
+            
+            // Cycle to next set
+            currentSetIndex = (currentSetIndex + 1) % setKeys.length;
+            currentSet = setKeys[currentSetIndex];
+            videos = videoSets[currentSet];
+            
+            // Reset current video and stop playback
+            currentVideoIndex = null;
+            stopEndTimeCheck();
+            player.stopVideo();
+            
+            // Update button text
+            const nextSetIndex = (currentSetIndex + 1) % setKeys.length;
+            const nextSetName = setKeys[nextSetIndex].replace('set', 'Set ');
+            setBtn.textContent = `Switch to ${nextSetName}`;
+            
+            // Re-render video list
+            renderVideoList();
         }
     </script>
 </body>
