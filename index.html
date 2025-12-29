@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .content-wrapper {
+                flex-direction: row;
+            }
+
+            .video-list {
+                flex: 0 0 350px;
+            }
+
+            .player-wrapper {
+                flex: 1;
+            }
+        }
+
+        .video-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .video-item {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: background 0.2s;
+        }
+
+        .video-item:hover {
+            background: #333;
+        }
+
+        .video-item.active {
+            background: #0066cc;
+        }
+
+        .video-name {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        .video-name:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        .play-btn {
+            background: #0066cc;
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .play-btn:hover {
+            background: #0052a3;
+        }
+
+        .play-btn.playing {
+            background: #dc3545;
+        }
+
+        .play-btn.playing:hover {
+            background: #c82333;
+        }
+
+        .player-container {
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            transition: opacity 0.3s;
+        }
+
+        .player-container.hidden {
+            opacity: 0;
+            pointer-events: none;
+            height: 0;
+            overflow: hidden;
+        }
+
+        #player {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .control-btn {
+            background: #444;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #555;
+        }
+
+        .control-btn.pause {
+            background: #dc3545;
+        }
+
+        .control-btn.pause:hover {
+            background: #c82333;
+        }
+
+        .control-btn.toggle {
+            background: #0066cc;
+        }
+
+        .control-btn.toggle:hover {
+            background: #0052a3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube Video Player</h1>
+        
+        <div class="content-wrapper">
+            <div class="video-list" id="videoList"></div>
+
+            <div class="player-wrapper">
+                <div class="controls">
+                    <button class="control-btn pause" id="pauseBtn" onclick="togglePause()">Pause</button>
+                    <button class="control-btn toggle" id="toggleBtn" onclick="toggleVideoVisibility()">Hide Video</button>
+                </div>
+
+                <div class="player-container">
+                    <div id="player"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        // Video configuration - edit this array to add/modify videos
+        const videos = [
+            {
+                id: 'iYAWhAhzstQ',
+                name: 'RHCP (Bass)',
+                startTime: 45,
+                endTime: 70  // Set to seconds to stop playback, or null for no limit
+            },
+            {
+                id: 'AEPIToPeyt0',
+                name: 'SG (Guitar)',
+                startTime: 702,
+                endTime: 720
+            },
+            {
+                id: 'fDk_nlzMbLw',
+                name: 'MJ (Drums)',
+                startTime: 3,
+                endTime: 30
+            },
+            {
+                id: 'ifDuN-NF8Oo',
+                name: 'RatCT (Sax)',
+                startTime: 0,
+                endTime: null
+            }
+        ];
+
+        let player;
+        let currentVideoIndex = null;
+        let endTimeInterval = null;
+        let isVideoVisible = true;
+
+        // Load YouTube IFrame API
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: videos[0].id,
+                playerVars: {
+                    'playsinline': 1,
+                    'start': videos[0].startTime
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            renderVideoList();
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                startEndTimeCheck();
+            } else {
+                stopEndTimeCheck();
+            }
+            renderVideoList();
+        }
+
+        function startEndTimeCheck() {
+            stopEndTimeCheck();
+
+            if (currentVideoIndex !== null && videos[currentVideoIndex].endTime !== null) {
+                endTimeInterval = setInterval(() => {
+                    const currentTime = player.getCurrentTime();
+                    const endTime = videos[currentVideoIndex].endTime;
+
+                    if (currentTime >= endTime) {
+                        player.pauseVideo();
+                        stopEndTimeCheck();
+                    }
+                }, 100);
+            }
+        }
+
+        function stopEndTimeCheck() {
+            if (endTimeInterval) {
+                clearInterval(endTimeInterval);
+                endTimeInterval = null;
+            }
+        }
+
+        function renderVideoList() {
+            const listContainer = document.getElementById('videoList');
+            listContainer.innerHTML = '';
+
+            videos.forEach((video, index) => {
+                const item = document.createElement('div');
+                item.className = 'video-item';
+                if (index === currentVideoIndex) {
+                    item.classList.add('active');
+                }
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'video-name';
+                input.value = video.name;
+                input.addEventListener('change', (e) => {
+                    videos[index].name = e.target.value;
+                });
+
+                const button = document.createElement('button');
+                button.className = 'play-btn';
+                
+                const isCurrentVideo = index === currentVideoIndex;
+                const isPlaying = isCurrentVideo && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING;
+                
+                if (isPlaying) {
+                    button.classList.add('playing');
+                    button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>';
+                } else {
+                    button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2 L13 8 L3 14 Z"/></svg>';
+                }
+                
+                button.addEventListener('click', () => {
+                    if (isCurrentVideo && player.getPlayerState() === YT.PlayerState.PLAYING) {
+                        player.pauseVideo();
+                    } else {
+                        playVideo(index);
+                    }
+                });
+
+                item.appendChild(input);
+                item.appendChild(button);
+                listContainer.appendChild(item);
+            });
+        }
+
+        function playVideo(index) {
+            currentVideoIndex = index;
+            const video = videos[index];
+            
+            player.loadVideoById({
+                videoId: video.id,
+                startSeconds: video.startTime
+            });
+            
+            renderVideoList();
+        }
+
+        function togglePause() {
+            if (player && player.getPlayerState) {
+                const state = player.getPlayerState();
+                
+                if (state === YT.PlayerState.PLAYING) {
+                    player.pauseVideo();
+                    document.getElementById('pauseBtn').textContent = 'Resume';
+                } else if (state === YT.PlayerState.PAUSED) {
+                    player.playVideo();
+                    document.getElementById('pauseBtn').textContent = 'Pause';
+                }
+            }
+        }
+
+        function toggleVideoVisibility() {
+            const playerContainer = document.querySelector('.player-container');
+            const toggleBtn = document.getElementById('toggleBtn');
+            
+            isVideoVisible = !isVideoVisible;
+            
+            if (isVideoVisible) {
+                playerContainer.classList.remove('hidden');
+                toggleBtn.textContent = 'Hide Video';
+            } else {
+                playerContainer.classList.add('hidden');
+                toggleBtn.textContent = 'Show Video';
+            }
+        }
+    </script>
+</body>
+</html>
