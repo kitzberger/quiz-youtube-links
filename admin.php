@@ -133,13 +133,34 @@
 
         .video-item {
             display: grid;
-            grid-template-columns: 1fr 120px 80px 80px auto;
+            grid-template-columns: 200px 1fr 80px 80px auto;
             gap: 10px;
             align-items: center;
             padding: 10px;
             background: #333;
             border-radius: 4px;
             margin-bottom: 8px;
+        }
+
+        .video-item .url-input-group {
+            display: flex;
+            gap: 5px;
+        }
+
+        .video-item .url-input-group input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .video-item .url-input-group button {
+            padding: 6px 8px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .video-item.loading {
+            opacity: 0.6;
+            pointer-events: none;
         }
 
         .video-item input[type="text"] {
@@ -306,7 +327,9 @@
                 if (!response.ok) {
                     throw new Error('File not found');
                 }
-                currentData = await response.json();
+                const data = await response.json();
+                // Ensure it's a plain object, not an array
+                currentData = (Array.isArray(data) || typeof data !== 'object' || data === null) ? {} : data;
                 currentFile = filename;
                 renderEditor();
                 document.getElementById('addGroupBtn').disabled = false;
@@ -455,6 +478,80 @@
             });
         }
 
+        function extractYouTubeId(input) {
+            // Already a valid ID (11 chars, alphanumeric with - and _)
+            if (/^[a-zA-Z0-9_-]{11}$/.test(input)) {
+                return input;
+            }
+
+            // Try to parse as URL
+            try {
+                const url = new URL(input);
+
+                // youtube.com/watch?v=ID
+                if (url.hostname.includes('youtube.com')) {
+                    const v = url.searchParams.get('v');
+                    if (v) return v;
+
+                    // youtube.com/embed/ID or youtube.com/v/ID
+                    const match = url.pathname.match(/^\/(embed|v)\/([a-zA-Z0-9_-]{11})/);
+                    if (match) return match[2];
+
+                    // youtube.com/shorts/ID
+                    const shortsMatch = url.pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
+                    if (shortsMatch) return shortsMatch[1];
+                }
+
+                // youtu.be/ID
+                if (url.hostname === 'youtu.be') {
+                    const id = url.pathname.slice(1).split('?')[0];
+                    if (/^[a-zA-Z0-9_-]{11}$/.test(id)) return id;
+                }
+            } catch (e) {
+                // Not a valid URL
+            }
+
+            return null;
+        }
+
+        async function fetchVideoTitle(videoId) {
+            try {
+                const response = await fetch(`api.php?youtube_info=${encodeURIComponent(videoId)}`);
+                if (!response.ok) return null;
+                const data = await response.json();
+                return data.title || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function handleUrlInput(groupName, index, inputValue) {
+            const videoId = extractYouTubeId(inputValue);
+
+            if (!videoId) {
+                showMessage('Could not extract YouTube ID from input', 'error');
+                return;
+            }
+
+            // Update the ID
+            updateVideo(groupName, index, 'id', videoId);
+
+            // Try to fetch the title
+            const videoItem = document.querySelector(`[data-group="${groupName}"][data-index="${index}"]`);
+            if (videoItem) videoItem.classList.add('loading');
+
+            const title = await fetchVideoTitle(videoId);
+
+            if (videoItem) videoItem.classList.remove('loading');
+
+            if (title) {
+                updateVideo(groupName, index, 'name', title);
+                showMessage(`Fetched: ${title}`, 'success');
+            }
+
+            renderEditor();
+        }
+
         function renderVideos(groupName) {
             const videos = currentData[groupName] || [];
 
@@ -463,11 +560,14 @@
             }
 
             return videos.map((video, index) => `
-                <div class="video-item">
+                <div class="video-item" data-group="${escapeHtml(groupName)}" data-index="${index}">
+                    <div class="url-input-group">
+                        <input type="text" value="${escapeHtml(video.id || '')}" placeholder="YouTube URL or ID" id="url-${escapeHtml(groupName)}-${index}"
+                               onchange="updateVideoId('${escapeHtml(groupName)}', ${index}, this.value)">
+                        <button class="secondary" onclick="handleUrlInput('${escapeHtml(groupName)}', ${index}, document.getElementById('url-${escapeHtml(groupName)}-${index}').value)">Fetch</button>
+                    </div>
                     <input type="text" value="${escapeHtml(video.name || '')}" placeholder="Video name"
                            onchange="updateVideo('${escapeHtml(groupName)}', ${index}, 'name', this.value)">
-                    <input type="text" value="${escapeHtml(video.id || '')}" placeholder="YouTube ID"
-                           onchange="updateVideo('${escapeHtml(groupName)}', ${index}, 'id', this.value)">
                     <input type="number" value="${video.startTime ?? 0}" placeholder="Start"
                            onchange="updateVideo('${escapeHtml(groupName)}', ${index}, 'startTime', parseInt(this.value) || 0)">
                     <input type="number" value="${video.endTime ?? ''}" placeholder="End"
@@ -546,6 +646,16 @@
         function updateVideo(groupName, index, field, value) {
             if (currentData[groupName] && currentData[groupName][index]) {
                 currentData[groupName][index][field] = value;
+            }
+        }
+
+        function updateVideoId(groupName, index, input) {
+            const videoId = extractYouTubeId(input);
+            if (videoId) {
+                updateVideo(groupName, index, 'id', videoId);
+            } else {
+                // Store raw input if we can't extract an ID
+                updateVideo(groupName, index, 'id', input);
             }
         }
 
