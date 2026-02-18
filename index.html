@@ -180,12 +180,58 @@
         .set-switch:hover {
             background: #218838;
         }
+
+        .file-selector {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .file-selector select {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-size: 16px;
+            min-width: 200px;
+        }
+
+        .file-selector select:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        .admin-link {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .admin-link:hover {
+            color: #0066cc;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>YouTube Video Player</h1>
-        
+
+        <div class="file-selector">
+            <select id="fileSelect" onchange="loadSelectedFile()">
+                <option value="">Select a playlist...</option>
+            </select>
+            <a href="admin.php" class="admin-link">Edit Playlists</a>
+        </div>
+
         <div class="content-wrapper">
             <div class="video-list" id="videoList"></div>
 
@@ -205,136 +251,90 @@
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
-        // Video configuration - edit these arrays to add/modify videos
-        const videoSets = {
-            set1: [
-                {
-                    id: 'iYAWhAhzstQ',
-                    name: 'Californication (Bass)',
-                    startTime: 45,
-                    endTime: 70  // Set to seconds to stop playback, or null for no limit
-                },
-                {
-                    id: 'AEPIToPeyt0',
-                    name: 'Black hole sun (Guitar)',
-                    startTime: 702,
-                    endTime: 720
-                },
-                {
-                    id: 'fDk_nlzMbLw',
-                    name: 'Black and White (Drums)',
-                    startTime: 3,
-                    endTime: 30
-                },
-                {
-                    id: 'ifDuN-NF8Oo',
-                    name: 'Rocking around (Sax)',
-                    startTime: 0,
-                    endTime: null
-                },
-                {
-                    id: 'VCa8X9i8vfs',
-                    name: 'Macarena (Drums)',
-                    startTime: 90,
-                    endTime: 150
-                },
-                {
-                    id: 'ywnc_OKKst8',
-                    name: 'Roxanne (Drums)',
-                    startTime: 0,
-                    endTime: 30
-                }
-            ],
-            set2: [
-                {
-                    id: 'qiTJyzwiqls',
-                    name: 'Anthony Strong',
-                    startTime: 105,
-                    endTime: 132
-                },
-                {
-                    id: 'gnEZxXryOt8',
-                    name: 'Help',
-                    startTime: 0,
-                    endTime: 90
-                },
-                {
-                    id: 'QDuMpS02BWY',
-                    name: 'White Room',
-                    startTime: 40,
-                    endTime: 70
-                },
-                {
-                    id: 'g_HN50TLuaI',
-                    name: 'Oops',
-                    startTime: 0,
-                    endTime: 25
-                },
-                {
-                    id: '2R-2Hi9j4yM',
-                    name: 'Enter Sandman',
-                    startTime: 23,
-                    endTime: 55
-                },
-                {
-                    id: '15VYekFpdaE',
-                    name: 'In da Club',
-                    startTime: 91,
-                    endTime: 115
-                },
-                {
-                    id: 'uznkstScnag',
-                    name: 'Walk the Line',
-                    startTime: 22,
-                    endTime: 41
-                },
-                {
-                    id: 'u3UVOjiorHE',
-                    name: 'Bad Guy',
-                    startTime: 30,
-                    endTime: 50
-                },
-                {
-                    id: '9wIU0maMWAw',
-                    name: 'Dancing Queen',
-                    startTime: 127,
-                    endTime: 149
-                }
-            ],
-            set3: [
-                {
-                    id: '3JWTaaS7LdU',
-                    name: 'Whitney',
-                    startTime: 170,
-                    endTime: 205
-                },
-                {
-                    id: 'vC1cgcOEErQ',
-                    name: 'Futur',
-                    startTime: 8,
-                    endTime: null
-                }
-            ]
-        };
-
+        let videoSets = {};
         let player;
+        let playerReady = false;
         let currentVideoIndex = null;
         let endTimeInterval = null;
         let isVideoVisible = true;
-        const setKeys = Object.keys(videoSets);
+        let setKeys = [];
         let currentSetIndex = 0;
-        let currentSet = setKeys[currentSetIndex];
-        let videos = videoSets[currentSet];
+        let currentSet = null;
+        let videos = [];
+        let currentFile = null;
+
+        // Load file list on startup
+        async function loadFileList() {
+            try {
+                const response = await fetch('api.php?list');
+                const data = await response.json();
+                const select = document.getElementById('fileSelect');
+
+                select.innerHTML = '<option value="">Select a playlist...</option>';
+
+                data.files.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file;
+                    option.textContent = file;
+                    select.appendChild(option);
+                });
+
+                // Auto-select first file if available
+                if (data.files.length > 0) {
+                    select.value = data.files[0];
+                    loadSelectedFile();
+                }
+            } catch (error) {
+                console.error('Failed to load file list:', error);
+            }
+        }
+
+        async function loadSelectedFile() {
+            const select = document.getElementById('fileSelect');
+            const filename = select.value;
+
+            if (!filename) {
+                videoSets = {};
+                setKeys = [];
+                videos = [];
+                currentSet = null;
+                renderVideoList();
+                updateSetButton();
+                return;
+            }
+
+            try {
+                const response = await fetch(`api.php?file=${encodeURIComponent(filename)}`);
+                if (!response.ok) throw new Error('File not found');
+
+                videoSets = await response.json();
+                currentFile = filename;
+                setKeys = Object.keys(videoSets);
+                currentSetIndex = 0;
+
+                if (setKeys.length > 0) {
+                    currentSet = setKeys[0];
+                    videos = videoSets[currentSet];
+                } else {
+                    currentSet = null;
+                    videos = [];
+                }
+
+                currentVideoIndex = null;
+                renderVideoList();
+                updateSetButton();
+            } catch (error) {
+                console.error('Failed to load file:', error);
+            }
+        }
 
         // Load YouTube IFrame API
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('player', {
                 height: '100%',
                 width: '100%',
-                videoId: videos[0].id,
                 playerVars: {
-                    'playsinline': 1,
-                    'start': videos[0].startTime
+                    'playsinline': 1
                 },
                 events: {
                     'onReady': onPlayerReady,
@@ -344,7 +344,8 @@
         }
 
         function onPlayerReady(event) {
-            renderVideoList();
+            playerReady = true;
+            loadFileList();
         }
 
         function onPlayerStateChange(event) {
@@ -379,9 +380,26 @@
             }
         }
 
+        function updateSetButton() {
+            const setBtn = document.getElementById('setBtn');
+            if (setKeys.length <= 1) {
+                setBtn.style.display = 'none';
+            } else {
+                setBtn.style.display = '';
+                const nextSetIndex = (currentSetIndex + 1) % setKeys.length;
+                const nextSetName = setKeys[nextSetIndex];
+                setBtn.textContent = `Switch to ${nextSetName}`;
+            }
+        }
+
         function renderVideoList() {
             const listContainer = document.getElementById('videoList');
             listContainer.innerHTML = '';
+
+            if (!videos || videos.length === 0) {
+                listContainer.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">No videos in this set</p>';
+                return;
+            }
 
             videos.forEach((video, index) => {
                 const item = document.createElement('div');
@@ -467,24 +485,20 @@
         }
 
         function switchSet() {
-            const setBtn = document.getElementById('setBtn');
-            
+            if (setKeys.length <= 1) return;
+
             // Cycle to next set
             currentSetIndex = (currentSetIndex + 1) % setKeys.length;
             currentSet = setKeys[currentSetIndex];
             videos = videoSets[currentSet];
-            
+
             // Reset current video and stop playback
             currentVideoIndex = null;
             stopEndTimeCheck();
-            player.stopVideo();
-            
-            // Update button text
-            const nextSetIndex = (currentSetIndex + 1) % setKeys.length;
-            const nextSetName = setKeys[nextSetIndex].replace('set', 'Set ');
-            setBtn.textContent = `Switch to ${nextSetName}`;
-            
-            // Re-render video list
+            if (playerReady) player.stopVideo();
+
+            // Update button and re-render
+            updateSetButton();
             renderVideoList();
         }
     </script>
