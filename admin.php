@@ -222,13 +222,20 @@
             align-items: center;
         }
 
-        .nav-link {
-            color: #0066cc;
+        .header-btn {
+            background: #444;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
             text-decoration: none;
+            transition: background 0.2s;
         }
 
-        .nav-link:hover {
-            text-decoration: underline;
+        .header-btn:hover {
+            background: #555;
         }
 
         .header-row {
@@ -254,7 +261,7 @@
     <div class="container">
         <div class="header-row">
             <h1>YouTube Links Editor</h1>
-            <a href="index.html" class="nav-link">← Back to Player</a>
+            <a href="index.html" class="header-btn">Player</a>
         </div>
 
         <div id="message" class="message"></div>

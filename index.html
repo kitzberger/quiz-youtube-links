@@ -32,16 +32,53 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            gap: 15px;
         }
 
-        .nav-link {
-            color: #888;
-            text-decoration: none;
+        .header-row select {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            border-radius: 4px;
             font-size: 14px;
+            min-width: 180px;
         }
 
-        .nav-link:hover {
-            color: #0066cc;
+        .header-row select:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .header-btn {
+            background: #444;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .header-btn:hover {
+            background: #555;
+        }
+
+        .header-btn.static {
+            background: #f0ad4e;
+        }
+
+        .header-btn.static:hover {
+            background: #ec971f;
         }
 
         .content-wrapper {
@@ -197,29 +234,6 @@
             background: #218838;
         }
 
-        .file-selector {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 20px;
-            align-items: center;
-        }
-
-        .file-selector select {
-            background: #2a2a2a;
-            color: #fff;
-            border: 1px solid #444;
-            padding: 10px 15px;
-            border-radius: 4px;
-            font-size: 16px;
-            min-width: 200px;
-        }
-
-        .file-selector select:focus {
-            outline: none;
-            border-color: #0066cc;
-        }
-
         .loading {
             text-align: center;
             padding: 40px;
@@ -231,13 +245,13 @@
     <div class="container">
         <div class="header-row">
             <h1>YouTube Video Player</h1>
-            <a href="admin.php" class="nav-link">Edit Playlists →</a>
-        </div>
-
-        <div class="file-selector">
             <select id="fileSelect" onchange="loadSelectedFile()">
                 <option value="">Select a playlist...</option>
             </select>
+            <div class="header-buttons">
+                <span id="staticButtons"></span>
+                <a href="admin.php" class="header-btn">Edit</a>
+            </div>
         </div>
 
         <div class="content-wrapper">
@@ -270,6 +284,47 @@
         let currentSet = null;
         let videos = [];
         let currentFile = null;
+        let staticEndTime = null;
+        let staticVideos = [];
+
+        // Load static buttons from static.json
+        async function loadStaticButtons() {
+            try {
+                const response = await fetch('api.php?file=static');
+                if (!response.ok) return;
+                const data = await response.json();
+                // Get first group's videos (typically "buttons")
+                const firstGroup = Object.keys(data)[0];
+                staticVideos = firstGroup ? data[firstGroup] : [];
+                renderStaticButtons();
+            } catch (error) {
+                console.error('Failed to load static buttons:', error);
+            }
+        }
+
+        function renderStaticButtons() {
+            const container = document.getElementById('staticButtons');
+            container.innerHTML = '';
+            staticVideos.forEach((video, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'header-btn static';
+                btn.textContent = video.name;
+                btn.onclick = () => playStaticVideo(index);
+                container.appendChild(btn);
+            });
+        }
+
+        function playStaticVideo(index) {
+            if (!playerReady || !staticVideos[index]) return;
+            const video = staticVideos[index];
+            currentVideoIndex = null;
+            staticEndTime = video.endTime;
+            player.loadVideoById({
+                videoId: video.id,
+                startSeconds: video.startTime || 0
+            });
+            renderVideoList();
+        }
 
         // Load file list on startup
         async function loadFileList() {
@@ -280,7 +335,10 @@
 
                 select.innerHTML = '<option value="">Select a playlist...</option>';
 
-                data.files.forEach(file => {
+                // Filter out 'static' from the dropdown
+                const playlists = data.files.filter(f => f !== 'static');
+
+                playlists.forEach(file => {
                     const option = document.createElement('option');
                     option.value = file;
                     option.textContent = file;
@@ -288,8 +346,8 @@
                 });
 
                 // Auto-select first file if available
-                if (data.files.length > 0) {
-                    select.value = data.files[0];
+                if (playlists.length > 0) {
+                    select.value = playlists[0];
                     loadSelectedFile();
                 }
             } catch (error) {
@@ -354,6 +412,7 @@
 
         function onPlayerReady(event) {
             playerReady = true;
+            loadStaticButtons();
             loadFileList();
         }
 
@@ -369,7 +428,20 @@
         function startEndTimeCheck() {
             stopEndTimeCheck();
 
-            if (currentVideoIndex !== null && videos[currentVideoIndex].endTime !== null) {
+            // Check for static video end time
+            if (staticEndTime !== null) {
+                endTimeInterval = setInterval(() => {
+                    const currentTime = player.getCurrentTime();
+                    if (currentTime >= staticEndTime) {
+                        player.pauseVideo();
+                        stopEndTimeCheck();
+                        staticEndTime = null;
+                    }
+                }, 100);
+                return;
+            }
+
+            if (currentVideoIndex !== null && videos[currentVideoIndex] && videos[currentVideoIndex].endTime !== null) {
                 endTimeInterval = setInterval(() => {
                     const currentTime = player.getCurrentTime();
                     const endTime = videos[currentVideoIndex].endTime;
@@ -454,13 +526,14 @@
 
         function playVideo(index) {
             currentVideoIndex = index;
+            staticEndTime = null;  // Clear static video when playing a regular video
             const video = videos[index];
-            
+
             player.loadVideoById({
                 videoId: video.id,
                 startSeconds: video.startTime
             });
-            
+
             renderVideoList();
         }
 
