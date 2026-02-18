@@ -19,13 +19,29 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
         h1 {
-            margin-bottom: 30px;
-            text-align: center;
+            margin-bottom: 0;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .nav-link {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .nav-link:hover {
+            color: #0066cc;
         }
 
         .content-wrapper {
@@ -204,16 +220,6 @@
             border-color: #0066cc;
         }
 
-        .admin-link {
-            color: #888;
-            text-decoration: none;
-            font-size: 14px;
-        }
-
-        .admin-link:hover {
-            color: #0066cc;
-        }
-
         .loading {
             text-align: center;
             padding: 40px;
@@ -223,13 +229,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>YouTube Video Player</h1>
+        <div class="header-row">
+            <h1>YouTube Video Player</h1>
+            <a href="admin.php" class="nav-link">Edit Playlists →</a>
+        </div>
 
         <div class="file-selector">
             <select id="fileSelect" onchange="loadSelectedFile()">
                 <option value="">Select a playlist...</option>
             </select>
-            <a href="admin.php" class="admin-link">Edit Playlists</a>
         </div>
 
         <div class="content-wrapper">
